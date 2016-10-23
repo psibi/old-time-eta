@@ -153,9 +153,9 @@ data ClockTime = TOD Integer Integer
 -- get the current timezone without being in the IO monad.
 
 instance Show ClockTime where
-    showsPrec _ t = showString (calendarTimeToString
-                                 (unsafePerformIO (toCalendarTime t)))
-
+    -- showsPrec _ t = showString (calendarTimeToString
+    --                              (unsafePerformIO (toCalendarTime t)))
+    showsPrec _ t = showString (calendarTimeToString $ unsafePerformIO ((print $ toUTCTime t) >> toCalendarTime t))
 {-
 The numeric fields have the following ranges.
 
@@ -336,7 +336,7 @@ calendarTimeToString  =  formatCalendarTime defaultTimeLocale "%c"
 
 formatCalendarTime :: TimeLocale -> String -> CalendarTime -> String
 formatCalendarTime l fmt cal@(CalendarTime year mon day hour minute sec _
-                                       wday yday tzname' _ _) =
+                                       wday yday tzname' _ _) = 
         doFmt fmt
   where doFmt ('%':'-':cs) = doFmt ('%':cs) -- padding not implemented
         doFmt ('%':'_':cs) = doFmt ('%':cs) -- padding not implemented
@@ -346,9 +346,9 @@ formatCalendarTime l fmt cal@(CalendarTime year mon day hour minute sec _
 
         decode 'A' = fst (wDays l  !! fromEnum wday) -- day of the week, full name
         decode 'a' = snd (wDays l  !! fromEnum wday) -- day of the week, abbrev.
-        decode 'B' = fst (months l !! fromEnum mon)  -- month, full name
-        decode 'b' = snd (months l !! fromEnum mon)  -- month, abbrev
-        decode 'h' = snd (months l !! fromEnum mon)  -- ditto
+        decode 'B' = fst (months l !! fromEnum (ctMonth cal))  -- month, full name
+        decode 'b' = snd (months l !! fromEnum (ctMonth cal))  -- month, abbrev
+        decode 'h' = snd (months l !! fromEnum (ctMonth cal))  -- ditto
         decode 'C' = show2 (year `quot` 100)         -- century
         decode 'c' = doFmt (dateTimeFmt l)           -- locale's data and time format.
         decode 'D' = doFmt "%m/%d/%y"
@@ -501,7 +501,7 @@ foreign import java unsafe "@static ghcvm.oldtime.Utils.getClockTimePrim" getClo
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getMonth" getMonth :: Int64 -> JString
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getDayOfWeek" getDayOfWeek :: Int64 -> JString
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getIsDST" getIsDST :: Bool
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getCtTz" getCtTz :: Int
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getCtTz" getCtTz :: Int64 -> Int
 foreign import java unsafe "@static ghcvm.oldtime.Utils.setTimeInMillis" setTimeInMillis :: Int64 -> Calendar
 
 -- Again, you can make this pure given that you don't mutate the calendar after -- creation. 
@@ -540,7 +540,7 @@ calToCalendarTime cal msec = CalendarTime  {
      , ctWDay = read $ unpackCString $ getDayOfWeek msec
      , ctYDay = getDayOfYear cal
      , ctTZName = unpackCString getTZ
-     , ctTZ = (getCtTz `div` 1000)
+     , ctTZ = (getCtTz msec `div` 1000)
      , ctIsDST = getIsDST
  }
 
