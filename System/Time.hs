@@ -1,7 +1,5 @@
 {-#LANGUAGE ScopedTypeVariables#-}
-#if __GLASGOW_HASKELL__ >= 701
-{-# LANGUAGE Trustworthy #-}
-#endif
+{-#LANGUAGE MagicHash#-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -112,17 +110,14 @@ module System.Time
 -- #endif                          
 
 import Prelude
+import GHC.Pack
 
 import Data.Ix
 import System.Locale
 import Foreign
 import System.IO.Unsafe (unsafePerformIO)
-
-#ifdef __HUGS__
-import Hugs.Time ( getClockTimePrim, toCalTimePrim, toClockTimePrim )
-#else
 import Foreign.C
-#endif
+
 
 -- One way to partition and give name to chunks of a year and a week:
 
@@ -231,7 +226,8 @@ realToInteger ct = round (realToFrac ct :: Double)
 
 getClockTime :: IO ClockTime
 getClockTime = do
-  ctime <- getClockTimeMSeconds
+  let ctime = getClockTimePrim
+  print ctime
   return $ milliSecondsToClockTime ctime
 
 -- -----------------------------------------------------------------------------
@@ -316,23 +312,7 @@ normalizeTimeDiff td =
 
 
 
--- -----------------------------------------------------------------------------
--- | converts an internal clock time to a local time, modified by the
--- timezone and daylight savings time settings in force at the time
--- of conversion.  Because of this dependence on the local environment,
--- 'toCalendarTime' is in the 'IO' monad.
-
-toCalendarTime :: ClockTime -> IO CalendarTime
-toCalendarTime (TOD sa pa)=  do
-  
-  error "3"
-
--- | converts an internal clock time into a 'CalendarTime' in standard
--- UTC format.
-
-toUTCTime :: ClockTime -> CalendarTime
-toUTCTime = error "4"
-
+-- replace
 
 -- | converts a 'CalendarTime' into the corresponding internal
 -- 'ClockTime', ignoring the contents of the  'ctWDay', 'ctYDay',
@@ -495,23 +475,93 @@ formatTimeDiff l fmt (TimeDiff year month day hour minute sec _)
    addS v s = if abs v == 1 then fst s else snd s
 
 milliSecondsToClockTime :: Int64 -> ClockTime
-milliSecondsToClockTime sec = TOD sec' (rem * (10 ^ 12))
+milliSecondsToClockTime sec = TOD sec' (rem * (10 ^ 9))
     where
       (sec' :: Integer,rem :: Integer) = quotRem secInt 1000
+      -- rem is in milliseconds
       secInt :: Integer = fromIntegral sec
 
 clockTimeToMilliSeconds :: ClockTime -> Int64
-clockTimeToMilliSeconds (TOD sa pa) = fromIntegral (sa * 1000) + (fromIntegral $ (pa * (10 ^ (-9))))
+clockTimeToMilliSeconds (TOD sa pa) = fromIntegral (sa * 1000) + (fromIntegral (pa `div` (10^9)))
 
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getClockTimePrim" getClockTimeMSeconds :: IO Int64
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getYear" getYear :: Int64 -> IO Int64
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getMonth" getMonth :: Int64 -> IO JString
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getDayOfMonth" getDayOfMonth :: Int64 -> IO Int64
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getHour" getHour :: Int64 -> IO Int64
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getMinutes" getMinutes :: Int64 -> IO Int64
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getSeconds" getSeconds :: Int64 -> IO Int64
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getDayOfWeek" getDayOfWeek :: Int64 -> IO JString
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getDayOfYear" getDayOfYear :: Int64 -> IO Int64
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getTZ" getTZ :: IO JString
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getIsDST" getIsDST :: IO Bool
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getCtTz" getCtTz :: Int64 -> IO Int64
+data {-# CLASS "java.util.Calendar" #-} Calendar = Calendar (Object# Calendar) 
+
+-- Calendar.YEAR/DAY_OF_MONTH is constant, so no need for monadic context 
+
+foreign import java unsafe "@static @field java.util.Calendar.YEAR" yEAR :: Int 
+foreign import java unsafe "@static @field java.util.Calendar.DAY_OF_MONTH" dAY_OF_MONTH :: Int 
+foreign import java unsafe "@static @field java.util.Calendar.HOUR_OF_DAY" hOUR_OF_DAY :: Int
+foreign import java unsafe "@static @field java.util.Calendar.MINUTE" mINUTE :: Int
+foreign import java unsafe "@static @field java.util.Calendar.SECOND" sECOND :: Int
+foreign import java unsafe "@static @field java.util.Calendar.DAY_OF_YEAR" dAY_OF_YEAR :: Int
+-- foreign import java unsafe "@static @field java.util.Calendar.MILLISECOND" mILLISECOND :: Int
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getTimeInMillis" getMillisecond :: Calendar -> Int64
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getTZ" getTZ :: JString
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getClockTimePrim" getClockTimePrim :: Int64
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getMonth" getMonth :: Int64 -> JString
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getDayOfWeek" getDayOfWeek :: Int64 -> JString
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getIsDST" getIsDST :: Bool
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getCtTz" getCtTz :: Int
+foreign import java unsafe "@static ghcvm.oldtime.Utils.setTimeInMillis" setTimeInMillis :: Int64 -> Calendar
+
+-- Again, you can make this pure given that you don't mutate the calendar after -- creation. 
+
+foreign import java unsafe "get" getField :: Calendar -> Int -> Int 
+
+getYear :: Calendar -> Int 
+getYear = flip getField yEAR 
+
+flipField = flip getField
+
+getDayOfMonth :: Calendar -> Int
+getDayOfMonth = flipField dAY_OF_MONTH
+
+getHourOfDay :: Calendar -> Int
+getHourOfDay = flipField hOUR_OF_DAY
+
+getMinute :: Calendar -> Int
+getMinute = flipField mINUTE
+            
+getSecond :: Calendar -> Int
+getSecond = flipField sECOND
+
+getDayOfYear :: Calendar -> Int
+getDayOfYear = flipField dAY_OF_YEAR
+
+calToCalendarTime :: Calendar -> Int64 -> CalendarTime
+calToCalendarTime cal msec = CalendarTime  {
+       ctYear  = getYear cal
+     , ctMonth = read $ unpackCString $ getMonth msec
+     , ctDay = getDayOfMonth cal
+     , ctHour = getHourOfDay cal
+     , ctMin = getMinute cal
+     , ctSec = getSecond cal
+     , ctPicosec = 0
+     , ctWDay = read $ unpackCString $ getDayOfWeek msec
+     , ctYDay = getDayOfYear cal
+     , ctTZName = unpackCString getTZ
+     , ctTZ = (getCtTz `div` 1000)
+     , ctIsDST = getIsDST
+ }
+
+
+  
+
+-- -----------------------------------------------------------------------------
+-- | converts an internal clock time to a local time, modified by the
+-- timezone and daylight savings time settings in force at the time
+-- of conversion.  Because of this dependence on the local environment,
+-- 'toCalendarTime' is in the 'IO' monad.
+
+toCalendarTime :: ClockTime -> IO CalendarTime
+toCalendarTime ct@(TOD sa pa)=  return $ calToCalendarTime (setTimeInMillis msec) msec
+    where msec = clockTimeToMilliSeconds ct
+
+-- | converts an internal clock time into a 'CalendarTime' in standard
+-- UTC format.
+
+toUTCTime :: ClockTime -> CalendarTime
+toUTCTime ct = calToCalendarTime (setTimeInMillis msec) msec
+    where msec = clockTimeToMilliSeconds ct
+
+
