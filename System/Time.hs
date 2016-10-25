@@ -528,20 +528,24 @@ getSecond = flipField sECOND
 getDayOfYear :: Calendar -> Int
 getDayOfYear = flipField dAY_OF_YEAR
 
-calToCalendarTime :: Calendar -> CalendarTime
-calToCalendarTime cal = CalendarTime  {
+calToCalendarTime :: Calendar 
+                  -> Integer -- Picosecond
+                  -> CalendarTime
+calToCalendarTime cal ps = CalendarTime  {
        ctYear  = getYear cal
      , ctMonth = read $ unpackCString $ getCMonth cal
      , ctDay = getDayOfMonth cal
      , ctHour = getHourOfDay cal
      , ctMin = getMinute cal
      , ctSec = getSecond cal
-     , ctPicosec = 0
+     , ctPicosec = ps
      , ctWDay = read $ unpackCString $ getCDayOfWeek cal
-     , ctYDay = getDayOfYear cal
+     , ctYDay = (getDayOfYear cal - 1) -- Not that in Haskell, the day
+                                       -- starts from 0. In Java, It
+                                       -- starts from 1.
      , ctTZName = unpackCString $ getTZ cal
      , ctTZ = (getCtTz cal `div` 1000)
-     , ctIsDST = getIsDST
+     , ctIsDST = getIsDST cal
  }
 
 
@@ -552,13 +556,13 @@ calToCalendarTime cal = CalendarTime  {
 -- 'toCalendarTime' is in the 'IO' monad.
 
 toCalendarTime :: ClockTime -> IO CalendarTime
-toCalendarTime ct@(TOD sa pa)=  return $ calToCalendarTime (setTimeInMillis msec)
+toCalendarTime ct@(TOD _ pa)=  return $ calToCalendarTime (setTimeInMillis msec) pa
     where msec = clockTimeToMilliSeconds ct
 
 -- | converts an internal clock time into a 'CalendarTime' in standard
 -- UTC format.
 
 toUTCTime :: ClockTime -> CalendarTime
-toUTCTime ct = calToCalendarTime cal
+toUTCTime ct@(TOD _ pa) = calToCalendarTime cal pa
     where cal = getTimeInUTC $ clockTimeToMilliSeconds ct
 
