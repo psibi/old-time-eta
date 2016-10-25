@@ -34,12 +34,13 @@ public class Utils {
         return new SimpleDateFormat("EEEE").format(new Date(millis));
     }
     
-    public static boolean getIsDST() {
+    public static boolean getIsDST(Calendar cal) {
+        Timezone tz = cal.getTimeZone();
         return TimeZone.getDefault().inDaylightTime( new Date() );    
     }
 
-    public static String getTZ() {
-        return TimeZone.getDefault().getDisplayName();
+    public static String getTZ(Calendar cal) {
+        return cal.getTimeZone().getDisplayName();
     }
     
     public static int getCtTz(Calendar cal) {

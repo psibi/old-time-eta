@@ -496,13 +496,11 @@ foreign import java unsafe "@static @field java.util.Calendar.SECOND" sECOND :: 
 foreign import java unsafe "@static @field java.util.Calendar.DAY_OF_YEAR" dAY_OF_YEAR :: Int
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getTimeInUTC" getTimeInUTC :: Int64 -> Calendar
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getTimeInMillis" getMillisecond :: Calendar -> Int64
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getTZ" getTZ :: JString
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getTZ" getTZ :: Calendar -> JString
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getClockTimePrim" getClockTimePrim :: Int64
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getMonth" getMonth :: Int64 -> JString
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getCMonth" getCMonth :: Calendar -> JString
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getDayOfWeek" getDayOfWeek :: Int64 -> JString
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getCDayOfWeek" getCDayOfWeek :: Calendar -> JString
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getIsDST" getIsDST :: Bool
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getIsDST" getIsDST :: Calendar -> Bool
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getCtTz" getCtTz :: Calendar -> Int
 foreign import java unsafe "@static ghcvm.oldtime.Utils.setTimeInMillis" setTimeInMillis :: Int64 -> Calendar
 
@@ -541,8 +539,8 @@ calToCalendarTime cal = CalendarTime  {
      , ctPicosec = 0
      , ctWDay = read $ unpackCString $ getCDayOfWeek cal
      , ctYDay = getDayOfYear cal
-     , ctTZName = unpackCString getTZ
-     , ctTZ = (getCtTz `div` 1000)
+     , ctTZName = unpackCString $ getTZ cal
+     , ctTZ = (getCtTz cal `div` 1000)
      , ctIsDST = getIsDST
  }
 
