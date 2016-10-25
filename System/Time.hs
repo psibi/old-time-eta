@@ -153,9 +153,9 @@ data ClockTime = TOD Integer Integer
 -- get the current timezone without being in the IO monad.
 
 instance Show ClockTime where
-    -- showsPrec _ t = showString (calendarTimeToString
-    --                              (unsafePerformIO (toCalendarTime t)))
-    showsPrec _ t = showString (calendarTimeToString $ unsafePerformIO ((print $ toUTCTime t) >> toCalendarTime t))
+    showsPrec _ t = showString (calendarTimeToString
+                                 (unsafePerformIO (toCalendarTime t)))
+
 {-
 The numeric fields have the following ranges.
 
@@ -494,14 +494,16 @@ foreign import java unsafe "@static @field java.util.Calendar.HOUR_OF_DAY" hOUR_
 foreign import java unsafe "@static @field java.util.Calendar.MINUTE" mINUTE :: Int
 foreign import java unsafe "@static @field java.util.Calendar.SECOND" sECOND :: Int
 foreign import java unsafe "@static @field java.util.Calendar.DAY_OF_YEAR" dAY_OF_YEAR :: Int
--- foreign import java unsafe "@static @field java.util.Calendar.MILLISECOND" mILLISECOND :: Int
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getTimeInUTC" getTimeInUTC :: Int64 -> Calendar
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getTimeInMillis" getMillisecond :: Calendar -> Int64
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getTZ" getTZ :: JString
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getClockTimePrim" getClockTimePrim :: Int64
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getMonth" getMonth :: Int64 -> JString
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getCMonth" getCMonth :: Calendar -> JString
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getDayOfWeek" getDayOfWeek :: Int64 -> JString
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getCDayOfWeek" getCDayOfWeek :: Calendar -> JString
 foreign import java unsafe "@static ghcvm.oldtime.Utils.getIsDST" getIsDST :: Bool
-foreign import java unsafe "@static ghcvm.oldtime.Utils.getCtTz" getCtTz :: Int64 -> Int
+foreign import java unsafe "@static ghcvm.oldtime.Utils.getCtTz" getCtTz :: Calendar -> Int
 foreign import java unsafe "@static ghcvm.oldtime.Utils.setTimeInMillis" setTimeInMillis :: Int64 -> Calendar
 
 -- Again, you can make this pure given that you don't mutate the calendar after -- creation. 
@@ -528,24 +530,22 @@ getSecond = flipField sECOND
 getDayOfYear :: Calendar -> Int
 getDayOfYear = flipField dAY_OF_YEAR
 
-calToCalendarTime :: Calendar -> Int64 -> CalendarTime
-calToCalendarTime cal msec = CalendarTime  {
+calToCalendarTime :: Calendar -> CalendarTime
+calToCalendarTime cal = CalendarTime  {
        ctYear  = getYear cal
-     , ctMonth = read $ unpackCString $ getMonth msec
+     , ctMonth = read $ unpackCString $ getCMonth cal
      , ctDay = getDayOfMonth cal
      , ctHour = getHourOfDay cal
      , ctMin = getMinute cal
      , ctSec = getSecond cal
      , ctPicosec = 0
-     , ctWDay = read $ unpackCString $ getDayOfWeek msec
+     , ctWDay = read $ unpackCString $ getCDayOfWeek cal
      , ctYDay = getDayOfYear cal
      , ctTZName = unpackCString getTZ
-     , ctTZ = (getCtTz msec `div` 1000)
+     , ctTZ = (getCtTz `div` 1000)
      , ctIsDST = getIsDST
  }
 
-
-  
 
 -- -----------------------------------------------------------------------------
 -- | converts an internal clock time to a local time, modified by the
@@ -554,14 +554,13 @@ calToCalendarTime cal msec = CalendarTime  {
 -- 'toCalendarTime' is in the 'IO' monad.
 
 toCalendarTime :: ClockTime -> IO CalendarTime
-toCalendarTime ct@(TOD sa pa)=  return $ calToCalendarTime (setTimeInMillis msec) msec
+toCalendarTime ct@(TOD sa pa)=  return $ calToCalendarTime (setTimeInMillis msec)
     where msec = clockTimeToMilliSeconds ct
 
 -- | converts an internal clock time into a 'CalendarTime' in standard
 -- UTC format.
 
 toUTCTime :: ClockTime -> CalendarTime
-toUTCTime ct = calToCalendarTime (setTimeInMillis msec) msec
-    where msec = clockTimeToMilliSeconds ct
-
+toUTCTime ct = calToCalendarTime cal
+    where cal = getTimeInUTC $ clockTimeToMilliSeconds ct
 

@@ -19,8 +19,18 @@ public class Utils {
     public static String getMonth(long millis) {
         return new SimpleDateFormat("MMMM").format(new Date(millis));
     }
+    
+    public static String getCMonth(Calendar cal) {
+        long millis = cal.getTimeInMillis();
+        return new SimpleDateFormat("MMMM").format(new Date(millis));
+    }
 
     public static String getDayOfWeek(long millis) {
+        return new SimpleDateFormat("EEEE").format(new Date(millis));
+    }
+
+    public static String getCDayOfWeek(Calendar cal) {
+        long millis = cal.getTimeInMillis();
         return new SimpleDateFormat("EEEE").format(new Date(millis));
     }
     
@@ -32,14 +42,22 @@ public class Utils {
         return TimeZone.getDefault().getDisplayName();
     }
     
-    public static int getCtTz(long millis) {
+    public static int getCtTz(Calendar cal) {
         // Returns milliseconds - so you have to convert it to seconds
-        return TimeZone.getDefault().getOffset(millis);
+        TimeZone tz = cal.getTimeZone();
+        return tz.getRawOffset();
     }
     
     public static Calendar setTimeInMillis(long millis) {
         Calendar cal = Calendar.getInstance();
         cal.setTimeInMillis(millis);
+        return cal;
+    }
+    
+    public static Calendar getTimeInUTC(long millis) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(1477242123000L);
+        cal.setTimeZone(TimeZone.getTimeZone("UTC"));
         return cal;
     }
 }
