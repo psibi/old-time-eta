@@ -35,7 +35,7 @@ public class Utils {
     }
     
     public static boolean getIsDST(Calendar cal) {
-        Timezone tz = cal.getTimeZone();
+        TimeZone tz = cal.getTimeZone();
         return TimeZone.getDefault().inDaylightTime( new Date() );    
     }
 
